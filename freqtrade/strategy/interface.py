@@ -81,6 +81,10 @@ class IStrategy(ABC):
     # associated minimal roi
     minimal_roi: Dict
 
+    # ER : Mise en place ROI par paire
+    minimal_roi_pair: Dict
+
+
     # associated stoploss
     stoploss: float
 
@@ -628,6 +632,9 @@ class IStrategy(ABC):
 
         return SellCheckTuple(sell_flag=False, sell_type=SellType.NONE)
 
+    '''
+    # ER : Mise en place ROI par paire
+
     def min_roi_reached_entry(self, trade_dur: int) -> Tuple[Optional[int], Optional[float]]:
         """
         Based on trade duration defines the ROI entry that may have been reached.
@@ -655,6 +662,42 @@ class IStrategy(ABC):
             return False
         else:
             return current_profit > roi
+        '''
+    def min_roi_reached_entry(self, trade_dur: int, pair = '') -> Tuple[Optional[int], Optional[float]]:
+        """
+        Based on trade duration defines the ROI entry that may have been reached.
+        :param trade_dur: trade duration in minutes
+        :return: minimal ROI entry value or None if none proper ROI entry was found.
+        """
+        roi_dict = self.minimal_roi
+
+        # Check if ROI Dict for pair
+        if len(pair) > 0:
+            # Check if Dict exist 
+            roi_dict = self.minimal_roi_pair.get(pair, self.minimal_roi)
+
+        # Get highest entry in ROI dict where key <= trade-duration
+        roi_list = list(filter(lambda x: float(x) <= trade_dur, roi_dict.keys()))
+        if not roi_list:
+            return None, None
+        roi_entry = max(roi_list)
+        return roi_entry, roi_dict[roi_entry]
+
+    def min_roi_reached(self, trade: Trade, current_profit: float, current_time: datetime) -> bool:
+        """
+        Based on trade duration, current profit of the trade and ROI configuration,
+        decides whether bot should sell.
+        :param current_profit: current profit as ratio
+        :return: True if bot should sell at current rate
+        """
+        # Check if time matches and current rate is above threshold
+        trade_dur = int((current_time.timestamp() - trade.open_date.timestamp()) // 60)
+        _, roi = self.min_roi_reached_entry(trade_dur, trade.pair)
+        if roi is None:
+            return False
+        else:
+            return current_profit > roi
+
 
     def ohlcvdata_to_dataframe(self, data: Dict[str, DataFrame]) -> Dict[str, DataFrame]:
         """
